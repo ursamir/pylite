@@ -1,5 +1,137 @@
 // chart.js
 
+if (!window.CrosshairManager) {
+    const CrosshairManager = {
+        charts: [],
+        legendCounter: 0,
+    
+        subscribeChart(chart) {
+            this.charts.push(chart);
+            chart.legend.createLegend(this.legendCounter); // Create legend when the chart is created
+            this.legendCounter++;
+            this.syncChartsTimeScale();
+            this.syncChartsCrosshairMove();
+        },
+    
+        unsubscribeChart(chart) {
+            this.charts = this.charts.filter(c => c !== chart);
+        },
+
+        syncChartsTimeScale() {
+            // Synchronize time scale among all charts
+            this.charts.forEach((chart1, index1) => {
+                this.charts.forEach((chart2, index2) => {
+                    if (index1 !== index2) {
+                        chart1.chart.timeScale().subscribeVisibleLogicalRangeChange(timeRange => {
+                            chart2.chart.timeScale().setVisibleLogicalRange(timeRange);
+                        });
+                        chart2.chart.timeScale().subscribeVisibleLogicalRangeChange(timeRange => {
+                            chart1.chart.timeScale().setVisibleLogicalRange(timeRange);
+                        });
+                    }
+                });
+            });
+        },
+
+        syncChartsCrosshairMove() {
+            // Synchronize crosshair move among all charts
+            this.charts.forEach((chart1, index1) => {
+                this.charts.forEach((chart2, index2) => {
+                    if (index1 !== index2) {
+                        chart1.chart.subscribeCrosshairMove(param => {
+                            const dataPoint = getCrosshairDataPoint(chart1.CandlestickSeries, param);
+                            syncCrosshair(chart2, chart2.CandlestickSeries, dataPoint,param);
+                        });
+
+                        chart2.chart.subscribeCrosshairMove(param => {
+                            const dataPoint = getCrosshairDataPoint(chart2.CandlestickSeries, param);
+                            syncCrosshair(chart1, chart1.CandlestickSeries, dataPoint,param);
+                        });
+                    }
+                });
+            });
+        },
+    };
+
+    window.CrosshairManager = CrosshairManager;
+}
+
+if (!window.Legend) {
+    class Legend {
+        constructor() {
+            this.legend = null; // Legend HTML element
+        }
+
+        createLegend(index) {
+            // Check if a legend already exists
+            if (!this.legend) {
+                // Create a legend HTML element and position it
+                const container = document.getElementById('wrapper'); // Change 'wrapper' to the appropriate container ID
+                this.legend = document.createElement('div');
+                this.legend.style = `
+                    position: absolute;
+                    left: 12px;
+                    top: ${12 + index * 100}px;
+                    z-index: 1;
+                    font-size: 14px;
+                    font-family: sans-serif;
+                    line-height: 18px;
+                    font-weight: 300;
+                    color: white; // Set legend text color
+                `;
+                container.appendChild(this.legend);
+            }
+        }
+
+        updateLegend(param, chart) {
+            // Check if legend exists proceed else do nothing
+            if (!this.legend) {
+                return;
+            }
+
+            const validCrosshairPoint = !(
+                param === undefined || param.time === undefined || param.point.x < 0 || param.point.y < 0
+            );
+
+            if (validCrosshairPoint) {
+                const olhc = param.seriesData.get(chart.CandlestickSeries);
+
+                const time = new Date(olhc.time * 1000).toUTCString().slice(4, -4);
+                const open = olhc.open.toFixed(2);
+                const high = olhc.high.toFixed(2);
+                const low = olhc.low.toFixed(2);
+                const close = olhc.close.toFixed(2);
+
+                const volume = param.seriesData.get(chart.VolumeSeries).value.toFixed(2);
+
+                const lineSeriesData = chart.LineSeriesList.map((lineSeries) => {
+                    const lineData = param.seriesData.get(lineSeries);
+                    return `${lineSeries.title}: ${lineData.value.toFixed(2)}`;
+                });
+
+                const legendText = `
+                    <div style="font-size: 18px; margin: 4px 0px;"> ${chart.Symbol} : ${time}</div>
+                    <div>Open: ${open} High: ${high} Low: ${low} Close: ${close} Volume: ${volume}</div>
+                    <div>${lineSeriesData.join(', ')}</div>
+                `;
+
+                this.legend.innerHTML = legendText;
+            } else {
+                this.legend.innerHTML = ""; // Clear legend if no valid data
+            }
+        }
+
+        removeLegend() {
+            if (this.legend) {
+                this.legend.remove();
+                this.legend = null;
+            }
+        }
+    }
+
+    window.Legend = Legend;
+}
+
 if (!window.Chart) {
     class Chart {
         constructor(chartContainerId) {
@@ -8,8 +140,8 @@ if (!window.Chart) {
             this.CandlestickSeries = null;
             this.LineSeriesList = [];
             this.VolumeSeries = null;
-            this.legend = null; // Legend HTML element
             this.Symbol = null;
+            this.legend = new Legend(); // Legend instance
         }
 
         createChart(width, height) {
@@ -52,11 +184,12 @@ if (!window.Chart) {
                     }
                 );
 
-                this.chart.subscribeCrosshairMove(this.updateLegend.bind(this));
+                window.CrosshairManager.subscribeChart(this);
+                this.chart.subscribeCrosshairMove(param => this.legend.updateLegend(param, this));
             }
         }
 
-        addCandlestickSeries(Symbol,data) {
+        addCandlestickSeries(Symbol, data) {
             // Check if a series already exists and remove it if it does
             this.removeCandlestickSeries();
 
@@ -117,21 +250,21 @@ if (!window.Chart) {
                 crosshairMarkerBorderWidth: 2,
                 lastPriceAnimation: LightweightCharts.LastPriceAnimationMode.Disabled,
             };
-        
+
             // Merge default options with provided options
-            const options = {...defaultOptions, ...lineStyleOptions};
+            const options = { ...defaultOptions, ...lineStyleOptions };
             const lineSeries = this.chart.addLineSeries(options);
             lineSeries.title = title; // Store the title
-        
+
             lineSeries.setData(
                 data.map((d) => ({
                     time: d.time,
                     value: d[value_name],
                 }))
             );
-        
+
             this.LineSeriesList.push(lineSeries);
-        }        
+        }
 
         removeLineSeries() {
             this.LineSeriesList.forEach((lineSeries) => {
@@ -140,83 +273,9 @@ if (!window.Chart) {
             this.LineSeriesList = [];
         }
 
-        createLegend() {
-            // Check if a legend already exists
-            if (!this.legend) {
-                // Create a legend HTML element and position it
-                const container = document.getElementById(this.chartContainerId);
-                this.legend = document.createElement('div');
-                this.legend.style = `
-                    position: absolute;
-                    left: 12px;
-                    top: 12px;
-                    z-index: 1;
-                    font-size: 14px;
-                    font-family: sans-serif;
-                    line-height: 18px;
-                    font-weight: 300;
-                    color: white; // Set legend text color
-                `;
-                container.appendChild(this.legend);
-            }
-        }
-
-        addLegendEntry(name, color) {
-            // Add an entry to the legend
-            const legendEntry = document.createElement('div');
-            legendEntry.innerHTML = name;
-            legendEntry.style.color = color;
-            this.legend.appendChild(legendEntry);
-        }
-
-        updateLegend(param) {
-            // Check if legend exists proceed else do nothing
-            if (!this.legend) {
-                return;
-            }
-            
-            const validCrosshairPoint = !(
-                param === undefined || param.time === undefined || param.point.x < 0 || param.point.y < 0
-            );
-            
-            if (validCrosshairPoint) {
-                const olhc = param.seriesData.get(this.CandlestickSeries);
-                
-                const time = new Date(olhc.time * 1000).toUTCString().slice(4, -4);
-                const open = olhc.open.toFixed(2);
-                const high = olhc.high.toFixed(2);
-                const low = olhc.low.toFixed(2);
-                const close = olhc.close.toFixed(2);
-
-                const volume = param.seriesData.get(this.VolumeSeries).value.toFixed(2);
-
-                const lineSeriesData = this.LineSeriesList.map((lineSeries) => {
-                    const lineData = param.seriesData.get(lineSeries);
-                    return `${lineSeries.title}: ${lineData.value.toFixed(2)}`;
-                });
-
-                const legendText = `
-                    <div style="font-size: 18px; margin: 4px 0px;"> ${this.Symbol} : ${time}</div>
-                    <div>Open: ${open} High: ${high} Low: ${low} Close: ${close} Volume: ${volume}</div>
-                    <div>${lineSeriesData.join(', ')}</div>
-                `;
-                
-                this.legend.innerHTML = legendText;
-            } else {
-                this.legend.innerHTML = ""; // Clear legend if no valid data
-            }
-        }
-
-        removeLegend() {
-            if (this.legend) {
-                this.legend.remove();
-                this.legend = null;
-            }
-        }
-        
-        createCandlestickChartWithData(width, height, Symbol,data) {
+        createCandlestickChartWithData(width, height, Symbol, data) {
             this.createChart(width, height);
-            this.addCandlestickSeries(Symbol,data);
+            this.addCandlestickSeries(Symbol, data);
             this.CandlestickSeries.priceScale().applyOptions({
                 scaleMargins: { top: 0.2, bottom: 0.21 },
             });
@@ -225,14 +284,29 @@ if (!window.Chart) {
                 scaleMargins: { top: 0.8, bottom: 0 },
             });
             this.removeLineSeries();
-            this.addLineSeries({ color: '#ffffffaa', lineWidth: 1 }, data, 'close','Line1');
-            this.addLineSeries({ color: '#ffffffaa', lineWidth: 1 }, data, 'open','Line2');
-
-            // clear legend if it exists
-            this.removeLegend();
-            this.createLegend();
+            this.addLineSeries({ color: '#ffffffaa', lineWidth: 1 }, data, 'close', 'Line1');
+            this.addLineSeries({ color: '#ffffffaa', lineWidth: 1 }, data, 'open', 'Line2');
         }
     }
 
     window.Chart = Chart;
+}
+
+function getCrosshairDataPoint(series, param) {
+	if (!param.time) {
+		return null;
+	}
+	const dataPoint = param.seriesData.get(series);
+	return dataPoint || null;
+}
+
+function syncCrosshair(chart, series, dataPoint, param) {
+	
+    if (dataPoint) {
+		chart.chart.setCrosshairPosition(dataPoint.value, dataPoint.time, series);
+	}
+	// chart.clearCrosshairPosition();
+    // if(param) {
+    //     chart.legend.updateLegend(param, chart);
+    // }
 }
