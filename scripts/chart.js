@@ -3,22 +3,19 @@
 if (!window.CrosshairManager) {
     const CrosshairManager = {
         charts: [],
-        legendCounter: 0,
-    
+
         subscribeChart(chart) {
             this.charts.push(chart);
-            chart.legend.createLegend(this.legendCounter); // Create legend when the chart is created
-            this.legendCounter++;
+            chart.legend.createLegend();
             this.syncChartsTimeScale();
             this.syncChartsCrosshairMove();
         },
-    
+
         unsubscribeChart(chart) {
             this.charts = this.charts.filter(c => c !== chart);
         },
 
         syncChartsTimeScale() {
-            // Synchronize time scale among all charts
             this.charts.forEach((chart1, index1) => {
                 this.charts.forEach((chart2, index2) => {
                     if (index1 !== index2) {
@@ -34,18 +31,17 @@ if (!window.CrosshairManager) {
         },
 
         syncChartsCrosshairMove() {
-            // Synchronize crosshair move among all charts
             this.charts.forEach((chart1, index1) => {
                 this.charts.forEach((chart2, index2) => {
                     if (index1 !== index2) {
                         chart1.chart.subscribeCrosshairMove(param => {
                             const dataPoint = getCrosshairDataPoint(chart1.CandlestickSeries, param);
-                            syncCrosshair(chart2, chart2.CandlestickSeries, dataPoint,param);
+                            syncCrosshair(chart2, chart2.CandlestickSeries, dataPoint, param);
                         });
 
                         chart2.chart.subscribeCrosshairMove(param => {
                             const dataPoint = getCrosshairDataPoint(chart2.CandlestickSeries, param);
-                            syncCrosshair(chart1, chart1.CandlestickSeries, dataPoint,param);
+                            syncCrosshair(chart1, chart1.CandlestickSeries, dataPoint, param);
                         });
                     }
                 });
@@ -58,20 +54,19 @@ if (!window.CrosshairManager) {
 
 if (!window.Legend) {
     class Legend {
-        constructor() {
-            this.legend = null; // Legend HTML element
+        constructor(chartContainerId) {
+            this.legend = null; 
+            this.chartContainerId = chartContainerId;
         }
 
-        createLegend(index) {
-            // Check if a legend already exists
+        createLegend() {
             if (!this.legend) {
-                // Create a legend HTML element and position it
-                const container = document.getElementById('wrapper'); // Change 'wrapper' to the appropriate container ID
+                const chartContainer = document.getElementById(this.chartContainerId);
                 this.legend = document.createElement('div');
                 this.legend.style = `
                     position: absolute;
+                    top: 0;
                     left: 12px;
-                    top: ${12 + index * 100}px;
                     z-index: 1;
                     font-size: 14px;
                     font-family: sans-serif;
@@ -79,12 +74,13 @@ if (!window.Legend) {
                     font-weight: 300;
                     color: white; // Set legend text color
                 `;
-                container.appendChild(this.legend);
+
+                chartContainer.style.position = 'relative';
+                chartContainer.appendChild(this.legend);
             }
         }
 
         updateLegend(param, chart) {
-            // Check if legend exists proceed else do nothing
             if (!this.legend) {
                 return;
             }
@@ -94,30 +90,40 @@ if (!window.Legend) {
             );
 
             if (validCrosshairPoint) {
-                const olhc = param.seriesData.get(chart.CandlestickSeries);
-
-                const time = new Date(olhc.time * 1000).toUTCString().slice(4, -4);
-                const open = olhc.open.toFixed(2);
-                const high = olhc.high.toFixed(2);
-                const low = olhc.low.toFixed(2);
-                const close = olhc.close.toFixed(2);
-
-                const volume = param.seriesData.get(chart.VolumeSeries).value.toFixed(2);
-
-                const lineSeriesData = chart.LineSeriesList.map((lineSeries) => {
-                    const lineData = param.seriesData.get(lineSeries);
-                    return `${lineSeries.title}: ${lineData.value.toFixed(2)}`;
-                });
-
-                const legendText = `
-                    <div style="font-size: 18px; margin: 4px 0px;"> ${chart.Symbol} : ${time}</div>
-                    <div>Open: ${open} High: ${high} Low: ${low} Close: ${close} Volume: ${volume}</div>
-                    <div>${lineSeriesData.join(', ')}</div>
-                `;
-
-                this.legend.innerHTML = legendText;
+                let legendText = "<div style='font-size: 18px; margin: 4px 0px;'>";
+            
+                if (chart.Symbol) {
+                    const symbol = chart.Symbol;
+                    legendText += `${symbol} : `;
+                }
+            
+                if (chart.CandlestickSeries) {
+                    const olhc = param.seriesData.get(chart.CandlestickSeries);
+                    const time = new Date(olhc.time * 1000).toUTCString().slice(4, -4);
+                    legendText += `Time: ${time} `;
+                    legendText += `Open: ${olhc.open.toFixed(2)} High: ${olhc.high.toFixed(2)} `;
+                    legendText += `Low: ${olhc.low.toFixed(2)} Close: ${olhc.close.toFixed(2)} `;
+                }
+            
+                if (chart.VolumeSeries) {
+                    const volume = param.seriesData.get(chart.VolumeSeries).value.toFixed(2);
+                    legendText += `Volume: ${volume} `;
+                }
+            
+                if (chart.LineSeriesList && chart.LineSeriesList.length > 0) {
+                    const lineSeriesData = chart.LineSeriesList.map((lineSeries) => {
+                        const lineData = param.seriesData.get(lineSeries);
+                        return `${lineSeries.title}: ${lineData.value.toFixed(2)}`;
+                    }).join(', ');
+            
+                    legendText += `${lineSeriesData} `;
+                }
+            
+                legendText += "</div>";
+            
+                this.legend.innerHTML = legendText.trim(); 
             } else {
-                this.legend.innerHTML = ""; // Clear legend if no valid data
+                this.legend.innerHTML = ""; 
             }
         }
 
@@ -141,7 +147,7 @@ if (!window.Chart) {
             this.LineSeriesList = [];
             this.VolumeSeries = null;
             this.Symbol = null;
-            this.legend = new Legend(); // Legend instance
+            this.legend = new Legend(chartContainerId);
         }
 
         createChart(width, height) {
@@ -190,27 +196,26 @@ if (!window.Chart) {
         }
 
         addCandlestickSeries(Symbol, data) {
-            // Check if a series already exists and remove it if it does
-            this.removeCandlestickSeries();
+            if (!this.CandlestickSeries) {
+                this.CandlestickSeries = this.chart.addCandlestickSeries({
+                    color: 'rgb(0, 120, 255)',
+                    lineWidth: 2,
+                });
+            }
 
-            this.Symbol = Symbol; // Set Symbol;
-            this.CandlestickSeries = this.chart.addCandlestickSeries({
-                color: 'rgb(0, 120, 255)',
-                lineWidth: 2,
-            });
-
+            this.Symbol = Symbol;
             this.CandlestickSeries.setData(data);
         }
 
         removeCandlestickSeries() {
             if (this.CandlestickSeries) {
-                this.chart.removeSeries(this.CandlestickSeries);
+                const seriesToRemove = this.CandlestickSeries;
+                this.chart.removeSeries(seriesToRemove);
                 this.CandlestickSeries = null;
             }
         }
 
         addVolumeSeries(data, value_name) {
-            // Check if a series already exists and remove it if it does
             this.removeVolumeSeries();
 
             this.VolumeSeries = this.chart.addHistogramSeries({
@@ -251,10 +256,9 @@ if (!window.Chart) {
                 lastPriceAnimation: LightweightCharts.LastPriceAnimationMode.Disabled,
             };
 
-            // Merge default options with provided options
             const options = { ...defaultOptions, ...lineStyleOptions };
             const lineSeries = this.chart.addLineSeries(options);
-            lineSeries.title = title; // Store the title
+            lineSeries.title = title; 
 
             lineSeries.setData(
                 data.map((d) => ({
@@ -272,41 +276,92 @@ if (!window.Chart) {
             });
             this.LineSeriesList = [];
         }
-
-        createCandlestickChartWithData(width, height, Symbol, data) {
-            this.createChart(width, height);
-            this.addCandlestickSeries(Symbol, data);
-            this.CandlestickSeries.priceScale().applyOptions({
-                scaleMargins: { top: 0.2, bottom: 0.21 },
-            });
-            this.addVolumeSeries(data, 'volume');
-            this.VolumeSeries.priceScale().applyOptions({
-                scaleMargins: { top: 0.8, bottom: 0 },
-            });
-            this.removeLineSeries();
-            this.addLineSeries({ color: '#ffffffaa', lineWidth: 1 }, data, 'close', 'Line1');
-            this.addLineSeries({ color: '#ffffffaa', lineWidth: 1 }, data, 'open', 'Line2');
-        }
     }
 
     window.Chart = Chart;
 }
 
+if (!window.ParentChart) {
+    class ParentChart extends Chart {
+        constructor(chartContainerId, width, height) {
+            super(chartContainerId);
+            this.subCharts = [];
+            this.createMainChartContainer();
+            this.createChart(width, height);
+
+        }
+
+        createMainChartContainer() {
+            let container = document.getElementById(this.chartContainerId);
+            if (!container) {
+                const wrapper = document.getElementById('wrapper');
+                container = document.createElement('div');
+                container.id = this.chartContainerId;
+                container.style.flex = '4';
+                container.style.width = '100%';
+                container.style.height = '0';
+                container.style.overflow = 'hidden';
+                wrapper.appendChild(container);
+            }
+        }
+
+        addSubChart(subChartContainerId, width, height) {
+            const existingSubChart = this.subCharts.find(subChart => subChart.chartContainerId === subChartContainerId);
+            if (!existingSubChart)
+            {
+                this.createSubchartContainer(subChartContainerId);
+                const subChart = new Chart(subChartContainerId);
+                subChart.createChart(width, height);
+                this.subCharts.push(subChart);
+
+                return subChart;
+            }
+            return existingSubChart;
+        }
+
+        createSubchartContainer(subChartContainerId) {
+            const subChartContainer = document.createElement('div');
+            subChartContainer.id = subChartContainerId;
+            subChartContainer.className = 'subchart';
+            subChartContainer.style.flex = '1';
+            subChartContainer.style.width = '100%';
+            subChartContainer.style.height = '0';
+            subChartContainer.style.overflow = 'hidden';
+            const wrapper = document.getElementById('wrapper');
+            wrapper.appendChild(subChartContainer);
+        }
+
+        removeSubChart(subChart) {
+            const index = this.subCharts.indexOf(subChart);
+            if (index !== -1) {
+                this.subCharts.splice(index, 1);
+
+                const subChartContainer = document.getElementById(subChart.chartContainerId);
+                if (subChartContainer) {
+                    subChartContainer.innerHTML = '';
+                    subChartContainer.remove();
+                }
+            }
+        }
+
+    }
+
+    window.ParentChart = ParentChart;
+}
+
 function getCrosshairDataPoint(series, param) {
-	if (!param.time) {
-		return null;
-	}
-	const dataPoint = param.seriesData.get(series);
-	return dataPoint || null;
+    if (!param.time) {
+        return null;
+    }
+    const dataPoint = param.seriesData.get(series);
+    return dataPoint || null;
 }
 
 function syncCrosshair(chart, series, dataPoint, param) {
-	
+
     if (dataPoint) {
-		chart.chart.setCrosshairPosition(dataPoint.value, dataPoint.time, series);
-	}
-	// chart.clearCrosshairPosition();
-    // if(param) {
-    //     chart.legend.updateLegend(param, chart);
-    // }
+        chart.chart.setCrosshairPosition(dataPoint.value, dataPoint.time, series);
+        return;
+    }
+    chart.chart.clearCrosshairPosition();
 }
