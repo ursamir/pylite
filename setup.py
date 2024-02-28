@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 setup(
-    name='pylite',
+    name='pylitechart',
     version='0.1.0',
     author='ursamir',
     author_email='samir.nmiet@gmail.com',
