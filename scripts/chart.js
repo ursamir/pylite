@@ -276,7 +276,7 @@ if (!window.Chart) {
             }
         }
 
-        addLineSeries(lineStyleOptions, data, value_name, title) {
+        addLineSeries(data, value_name, title,lineStyleOptions) {
             const defaultOptions = {
                 color: '#ffffffaa',
                 lineWidth: 1,
@@ -294,7 +294,7 @@ if (!window.Chart) {
             };
 
             const options = { ...defaultOptions, ...lineStyleOptions };
-            const lineSeries = this.chart.addLineSeries(options);
+            let lineSeries = this.chart.addLineSeries(options);
             lineSeries.title = title; 
 
             lineSeries.setData(
@@ -307,11 +307,21 @@ if (!window.Chart) {
             this.LineSeriesList.push(lineSeries);
         }
 
-        removeLineSeries() {
+        removeallLineSeries() {
             this.LineSeriesList.forEach((lineSeries) => {
                 this.chart.removeSeries(lineSeries);
             });
             this.LineSeriesList = [];
+        }
+
+        removeLineSeries(title) {
+            const lineSeriesToRemove = this.LineSeriesList.find(series => series.title === title);
+
+            if (lineSeriesToRemove) {
+                const index = this.LineSeriesList.indexOf(lineSeriesToRemove);
+                this.chart.removeSeries(lineSeriesToRemove);
+                this.LineSeriesList.splice(index, 1);
+            }
         }
     }
 
@@ -325,7 +335,6 @@ if (!window.ParentChart) {
             this.subCharts = [];
             this.createMainChartContainer();
             this.createChart(width, height);
-
         }
 
         createMainChartContainer() {
