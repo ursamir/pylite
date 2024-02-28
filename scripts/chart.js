@@ -138,6 +138,72 @@ if (!window.Legend) {
     window.Legend = Legend;
 }
 
+const MainchartOptions = {
+    layout: {
+        textColor: '#d8d9db',
+        background: {
+            color: '#001B1B',
+            type: LightweightCharts.ColorType.Solid,
+        },
+        fontSize: 12,
+    },
+    autoSize: true,
+    rightPriceScale: {
+        scaleMargins: { top: 0.1, bottom: 0 },
+    },
+    timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+    },
+    crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+        vertLine: {
+            labelBackgroundColor: 'rgb(46, 46, 46)',
+        },
+        horzLine: {
+            labelBackgroundColor: 'rgb(55, 55, 55)',
+        },
+    },
+    grid: {
+        vertLines: { color: 'rgba(29, 30, 38, 5)' },
+        horzLines: { color: 'rgba(29, 30, 58, 5)' },
+    },
+    handleScroll: { vertTouchDrag: true },
+};
+
+const SubchartOptions = {
+    layout: {
+        textColor: '#d8d9db',
+        background: {
+            color: '#001B1B',
+            type: LightweightCharts.ColorType.Solid,
+        },
+        fontSize: 12,
+    },
+    autoSize: true,
+    rightPriceScale: {
+        scaleMargins: { top: 0, bottom: 0 },
+    },
+    timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+    },
+    crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+        vertLine: {
+            labelBackgroundColor: 'rgb(46, 46, 46)',
+        },
+        horzLine: {
+            labelBackgroundColor: 'rgb(55, 55, 55)',
+        },
+    },
+    grid: {
+        vertLines: { color: 'rgba(29, 30, 38, 5)' },
+        horzLines: { color: 'rgba(29, 30, 58, 5)' },
+    },
+    handleScroll: { vertTouchDrag: true },
+};
+
 if (!window.Chart) {
     class Chart {
         constructor(chartContainerId) {
@@ -150,43 +216,14 @@ if (!window.Chart) {
             this.legend = new Legend(chartContainerId);
         }
 
-        createChart(width, height) {
+        createChart(width, height, chartOptions = MainchartOptions) {
             if (!this.chart) {
                 this.chart = LightweightCharts.createChart(
                     document.getElementById(this.chartContainerId),
                     {
                         width: width,
                         height: height,
-                        layout: {
-                            textColor: '#d8d9db',
-                            background: {
-                                color: '#001B1B',
-                                type: LightweightCharts.ColorType.Solid,
-                            },
-                            fontSize: 12,
-                        },
-                        autoSize: true,
-                        rightPriceScale: {
-                            scaleMargins: { top: 0, bottom: 0 },
-                        },
-                        timeScale: {
-                            timeVisible: true,
-                            secondsVisible: false,
-                        },
-                        crosshair: {
-                            mode: LightweightCharts.CrosshairMode.Normal,
-                            vertLine: {
-                                labelBackgroundColor: 'rgb(46, 46, 46)',
-                            },
-                            horzLine: {
-                                labelBackgroundColor: 'rgb(55, 55, 55)',
-                            },
-                        },
-                        grid: {
-                            vertLines: { color: 'rgba(29, 30, 38, 5)' },
-                            horzLines: { color: 'rgba(29, 30, 58, 5)' },
-                        },
-                        handleScroll: { vertTouchDrag: true },
+                        ...chartOptions,
                     }
                 );
 
@@ -300,6 +337,7 @@ if (!window.ParentChart) {
                 container.style.flex = '4';
                 container.style.width = '100%';
                 container.style.height = '0';
+                container.style.minHeight = '400px';
                 container.style.overflow = 'hidden';
                 wrapper.appendChild(container);
             }
@@ -311,7 +349,7 @@ if (!window.ParentChart) {
             {
                 this.createSubchartContainer(subChartContainerId);
                 const subChart = new Chart(subChartContainerId);
-                subChart.createChart(width, height);
+                subChart.createChart(width, height, SubchartOptions);
                 this.subCharts.push(subChart);
 
                 return subChart;
@@ -326,6 +364,7 @@ if (!window.ParentChart) {
             subChartContainer.style.flex = '1';
             subChartContainer.style.width = '100%';
             subChartContainer.style.height = '0';
+            subChartContainer.style.minHeight = '100px';
             subChartContainer.style.overflow = 'hidden';
             const wrapper = document.getElementById('wrapper');
             wrapper.appendChild(subChartContainer);
