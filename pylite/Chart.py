@@ -1,8 +1,7 @@
 # Chart.py
-from PySide6.QtCore import QUrl, Qt
-from PySide6.QtWidgets import QVBoxLayout, QWidget, QScrollArea
+from PySide6.QtCore import QUrl
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEngineSettings
 import os
 from datetime import datetime
 from dateutil import tz

@@ -1,7 +1,7 @@
 # app.py
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QLineEdit,QGridLayout
 import yfinance as yf
-from Chart import ChartWidget
+from pylite import ChartWidget
 
 class MainWindow(QMainWindow):
     def __init__(self):
